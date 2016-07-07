@@ -1,7 +1,6 @@
-var _ = require('lodash');
+import _ from 'lodash';
 
 module.exports = function (chrome, internals) {
-
   /**
    * ui/chrome Theme API
    *
@@ -36,35 +35,66 @@ module.exports = function (chrome, internals) {
   };
 
   /**
-   * @param {string} logo - css background value
-   * @param {string|bool} [smallLogo] - css background value, true to reuse the regular logo
+   * @param {string|object} item - brand key to set, or object to apply
+   * @param {mixed} val - value to put on the brand item
    * @return {chrome}
    */
-  chrome.setLogo = function (logo, smallLogo) {
-    if (smallLogo === true) {
-      smallLogo = logo;
+  chrome.setBrand = function (item, val) {
+    internals.brand = internals.brand || {};
+
+    // allow objects to be passed in
+    if (_.isPlainObject(item)) {
+      internals.brand = _.clone(item);
+    } else {
+      internals.brand[item] = val;
     }
 
-    chrome.logo = logo;
-    chrome.smallLogo = smallLogo;
-
-    return chrome;
-  };
-
-  /**
-   * @param {string} val - the text to display
-   * @return {chrome}
-   */
-  chrome.setBrand = function (val) {
-    internals.brand = val;
     return chrome;
   };
 
   /**
    * @return {string} - the brand text
    */
-  chrome.getBrand = function () {
-    return internals.brand;
+  chrome.getBrand = function (item) {
+    if (!internals.brand) return;
+    return internals.brand[item];
+  };
+
+  /**
+   * Adds a class to the application node
+   * @param {string} - the class name to add
+   * @return {chrome}
+   */
+  chrome.addApplicationClass = function (val) {
+    let classes = internals.applicationClasses || [];
+    classes.push(val);
+    classes = _.uniq(classes);
+
+    internals.applicationClasses = classes;
+    return chrome;
+  };
+
+  /**
+   * Removes a class from the application node. Note: this only
+   * removes classes that were added via the addApplicationClass method
+   * @param  {string|[string]} - class or classes to be removed
+   * @return {chrome}
+   */
+  chrome.removeApplicationClass = function (val) {
+    let classesToRemove = [].concat(val || []);
+    let classes = internals.applicationClasses || [];
+    _.pull(classes, ...classesToRemove);
+
+    internals.applicationClasses = classes;
+    return chrome;
+  };
+
+  /**
+   * @return {string} - a space delimited string of the classes added by the
+   * addApplicationClass method
+   */
+  chrome.getApplicationClasses = function () {
+    return internals.applicationClasses.join(' ');
   };
 
 };

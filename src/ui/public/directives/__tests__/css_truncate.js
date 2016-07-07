@@ -1,12 +1,16 @@
-var angular = require('angular');
-var $ = require('jquery');
-var expect = require('expect.js');
-var ngMock = require('ngMock');
-require('plugins/kibana/discover/index');
+import angular from 'angular';
+import expect from 'expect.js';
+import ngMock from 'ng_mock';
+import $ from 'jquery';
+import 'plugins/kibana/discover/index';
 
-var $parentScope, $scope, $elem;
+let $parentScope;
 
-var init = function (expandable) {
+let $scope;
+
+let $elem;
+
+let init = function (expandable) {
   // Load the application
   ngMock.module('kibana');
 

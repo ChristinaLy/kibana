@@ -1,27 +1,27 @@
-var _ = require('lodash');
-var Promise = require('bluebird');
-var writeFile = Promise.promisify(require('fs').writeFile);
-var unlink = require('fs').unlinkSync;
+import _ from 'lodash';
+import Boom from 'boom';
+import Promise from 'bluebird';
+import { unlinkSync as unlink } from 'fs';
+let writeFile = Promise.promisify(require('fs').writeFile);
 
 module.exports = Promise.method(function (kbnServer, server, config) {
-  var path = config.get('pid.file');
+  let path = config.get('pid.file');
   if (!path) return;
 
-  var pid = String(process.pid);
+  let pid = String(process.pid);
 
   return writeFile(path, pid, { flag: 'wx' })
   .catch(function (err) {
     if (err.code !== 'EEXIST') throw err;
 
-    var log = {
+    let log = {
       tmpl: 'pid file already exists at <%= path %>',
       path: path,
       pid: pid
     };
 
     if (config.get('pid.exclusive')) {
-      server.log(['pid', 'fatal'], log);
-      process.exit(1); // eslint-disable-line  no-process-exit
+      throw Boom.create(500, _.template(log.tmpl)(log), log);
     } else {
       server.log(['pid', 'warning'], log);
     }
@@ -36,7 +36,7 @@ module.exports = Promise.method(function (kbnServer, server, config) {
       pid: pid
     });
 
-    var clean = _.once(function (code) {
+    let clean = _.once(function (code) {
       unlink(path);
     });
 
@@ -46,6 +46,10 @@ module.exports = Promise.method(function (kbnServer, server, config) {
 
       // resend SIGINT
       process.kill(process.pid, 'SIGINT');
+    });
+
+    process.on('unhandledRejection', function (reason, promise) {
+      server.log(['warning'], `Detected an unhandled Promise rejection.\n${reason}`);
     });
   });
 });

@@ -1,4 +1,4 @@
-var _ = require('lodash');
+import _ from 'lodash';
 
 module.exports = function (chrome, internals) {
 
@@ -52,7 +52,7 @@ module.exports = function (chrome, internals) {
       controllerName = 'chrome.$$rootControllerConstruct';
     }
 
-    internals.rootController = controllerName + ( as ? ' as ' + as : '' );
+    internals.rootController = controllerName + (as ? ' as ' + as : '');
     return chrome;
   };
 

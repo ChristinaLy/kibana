@@ -1,150 +1,154 @@
-define(function (require) {
-  return function SearchSourceFactory(Promise, Private) {
-    var _ = require('lodash');
-    var SourceAbstract = Private(require('ui/courier/data_source/_abstract'));
-    var SearchRequest = Private(require('ui/courier/fetch/request/search'));
-    var SegmentedRequest = Private(require('ui/courier/fetch/request/segmented'));
-    var searchStrategy = Private(require('ui/courier/fetch/strategy/search'));
-    var normalizeSortRequest = Private(require('ui/courier/data_source/_normalize_sort_request'));
-    var rootSearchSource = require('ui/courier/data_source/_root_search_source');
+import _ from 'lodash';
 
-    _.class(SearchSource).inherits(SourceAbstract);
-    function SearchSource(initialState) {
-      SearchSource.Super.call(this, initialState, searchStrategy);
+import NormalizeSortRequestProvider from './_normalize_sort_request';
+import rootSearchSource from './_root_search_source';
+import AbstractDataSourceProvider from './_abstract';
+import SearchRequestProvider from '../fetch/request/search';
+import SegmentedRequestProvider from '../fetch/request/segmented';
+import SearchStrategyProvider from '../fetch/strategy/search';
+
+export default function SearchSourceFactory(Promise, Private) {
+  let SourceAbstract = Private(AbstractDataSourceProvider);
+  let SearchRequest = Private(SearchRequestProvider);
+  let SegmentedRequest = Private(SegmentedRequestProvider);
+  let searchStrategy = Private(SearchStrategyProvider);
+  let normalizeSortRequest = Private(NormalizeSortRequestProvider);
+
+  _.class(SearchSource).inherits(SourceAbstract);
+  function SearchSource(initialState) {
+    SearchSource.Super.call(this, initialState, searchStrategy);
+  }
+
+  /*****
+   * PUBLIC API
+   *****/
+
+  /**
+   * List of the editable state properties that turn into a
+   * chainable API
+   *
+   * @type {Array}
+   */
+  SearchSource.prototype._methods = [
+    'type',
+    'query',
+    'filter',
+    'sort',
+    'highlight',
+    'aggs',
+    'from',
+    'size',
+    'source'
+  ];
+
+  SearchSource.prototype.index = function (indexPattern) {
+    if (indexPattern === undefined) return this._state.index;
+    if (indexPattern === null) return delete this._state.index;
+    if (!indexPattern || typeof indexPattern.toIndexList !== 'function') {
+      throw new TypeError('expected indexPattern to be an IndexPattern duck.');
     }
 
-    // expose a ready state for the route setup to read
+    this._state.index = indexPattern;
+    return this;
+  };
 
-    /*****
-     * PUBLIC API
-     *****/
+  SearchSource.prototype.extend = function () {
+    return (new SearchSource()).inherits(this);
+  };
 
-    /**
-     * List of the editable state properties that turn into a
-     * chainable API
-     *
-     * @type {Array}
-     */
-    SearchSource.prototype._methods = [
-      'type',
-      'query',
-      'filter',
-      'sort',
-      'highlight',
-      'aggs',
-      'from',
-      'size',
-      'source'
-    ];
+  /**
+   * Set a searchSource that this source should inherit from
+   * @param  {SearchSource} searchSource - the parent searchSource
+   * @return {this} - chainable
+   */
+  SearchSource.prototype.inherits = function (parent) {
+    this._parent = parent;
+    return this;
+  };
 
-    SearchSource.prototype.index = function (indexPattern) {
-      if (indexPattern === undefined) return this._state.index;
-      if (indexPattern === null) return delete this._state.index;
-      if (!indexPattern || typeof indexPattern.toIndexList !== 'function') {
-        throw new TypeError('expected indexPattern to be an IndexPattern duck.');
-      }
+  /**
+   * Get the parent of this SearchSource
+   * @return {undefined|searchSource}
+   */
+  SearchSource.prototype.getParent = function (onlyHardLinked) {
+    let self = this;
+    if (self._parent === false) return;
+    if (self._parent) return self._parent;
+    return onlyHardLinked ? undefined : Private(rootSearchSource).get();
+  };
 
-      this._state.index = indexPattern;
-      return this;
-    };
+  /**
+   * Temporarily prevent this Search from being fetched... not a fan but it's easy
+   */
+  SearchSource.prototype.disable = function () {
+    this._fetchDisabled = true;
+  };
 
-    SearchSource.prototype.extend = function () {
-      return (new SearchSource()).inherits(this);
-    };
+  /**
+   * Reverse of SourceAbstract#disable(), only need to call this if source was previously disabled
+   */
+  SearchSource.prototype.enable = function () {
+    this._fetchDisabled = false;
+  };
 
-    /**
-     * Set a searchSource that this source should inherit from
-     * @param  {SearchSource} searchSource - the parent searchSource
-     * @return {this} - chainable
-     */
-    SearchSource.prototype.inherits = function (parent) {
-      this._parent = parent;
-      return this;
-    };
+  SearchSource.prototype.onBeginSegmentedFetch = function (initFunction) {
+    let self = this;
+    return Promise.try(function addRequest() {
+      let req = new SegmentedRequest(self, Promise.defer(), initFunction);
 
-    /**
-     * Get the parent of this SearchSource
-     * @return {undefined|searchSource}
-     */
-    SearchSource.prototype.getParent = function (onlyHardLinked) {
-      var self = this;
-      if (self._parent === false) return;
-      if (self._parent) return self._parent;
-      return onlyHardLinked ? undefined : Private(rootSearchSource).get();
-    };
+      // return promises created by the completion handler so that
+      // errors will bubble properly
+      return req.defer.promise.then(addRequest);
+    });
+  };
 
-    /**
-     * Temporarily prevent this Search from being fetched... not a fan but it's easy
-     */
-    SearchSource.prototype.disable = function () {
-      this._fetchDisabled = true;
-    };
 
-    /**
-     * Reverse of SourceAbstract#disable(), only need to call this if source was previously disabled
-     */
-    SearchSource.prototype.enable = function () {
-      this._fetchDisabled = false;
-    };
+  /******
+   * PRIVATE APIS
+   ******/
 
-    SearchSource.prototype.onBeginSegmentedFetch = function (initFunction) {
-      var self = this;
-      return Promise.try(function addRequest() {
-        var req = new SegmentedRequest(self, Promise.defer(), initFunction);
+  /**
+   * Gets the type of the DataSource
+   * @return {string}
+   */
+  SearchSource.prototype._getType = function () {
+    return 'search';
+  };
 
-        // return promises created by the completion handler so that
-        // errors will bubble properly
-        return req.defer.promise.then(addRequest);
+  /**
+   * Create a common search request object, which should
+   * be put into the pending request queye, for this search
+   * source
+   *
+   * @param {Deferred} defer - the deferred object that should be resolved
+   *                         when the request is complete
+   * @return {SearchRequest}
+   */
+  SearchSource.prototype._createRequest = function (defer) {
+    return new SearchRequest(this, defer);
+  };
+
+  /**
+   * Used to merge properties into the state within ._flatten().
+   * The state is passed in and modified by the function
+   *
+   * @param  {object} state - the current merged state
+   * @param  {*} val - the value at `key`
+   * @param  {*} key - The key of `val`
+   * @return {undefined}
+   */
+  SearchSource.prototype._mergeProp = function (state, val, key) {
+    if (typeof val === 'function') {
+      let source = this;
+      return Promise.cast(val(this))
+      .then(function (newVal) {
+        return source._mergeProp(state, newVal, key);
       });
-    };
+    }
 
+    if (val == null || !key || !_.isString(key)) return;
 
-    /******
-     * PRIVATE APIS
-     ******/
-
-    /**
-     * Gets the type of the DataSource
-     * @return {string}
-     */
-    SearchSource.prototype._getType = function () {
-      return 'search';
-    };
-
-    /**
-     * Create a common search request object, which should
-     * be put into the pending request queye, for this search
-     * source
-     *
-     * @param {Deferred} defer - the deferred object that should be resolved
-     *                         when the request is complete
-     * @return {SearchRequest}
-     */
-    SearchSource.prototype._createRequest = function (defer) {
-      return new SearchRequest(this, defer);
-    };
-
-    /**
-     * Used to merge properties into the state within ._flatten().
-     * The state is passed in and modified by the function
-     *
-     * @param  {object} state - the current merged state
-     * @param  {*} val - the value at `key`
-     * @param  {*} key - The key of `val`
-     * @return {undefined}
-     */
-    SearchSource.prototype._mergeProp = function (state, val, key) {
-      if (typeof val === 'function') {
-        var source = this;
-        return Promise.cast(val(this))
-        .then(function (newVal) {
-          return source._mergeProp(state, newVal, key);
-        });
-      }
-
-      if (val == null || !key || !_.isString(key)) return;
-
-      switch (key) {
+    switch (key) {
       case 'filter':
         // user a shallow flatten to detect if val is an array, and pull the values out if it is
         state.filters = _([ state.filters || [], val ])
@@ -172,24 +176,23 @@ define(function (require) {
         break;
       default:
         addToBody();
-      }
+    }
 
-      /**
-       * Add the key and val to the body of the resuest
-       */
-      function addToBody() {
-        state.body = state.body || {};
-        // ignore if we already have a value
-        if (state.body[key] == null) {
-          if (key === 'query' && _.isString(val)) {
-            val = { query_string: { query: val }};
-          }
-
-          state.body[key] = val;
+    /**
+     * Add the key and val to the body of the resuest
+     */
+    function addToBody() {
+      state.body = state.body || {};
+      // ignore if we already have a value
+      if (state.body[key] == null) {
+        if (key === 'query' && _.isString(val)) {
+          val = { query_string: { query: val }};
         }
-      }
-    };
 
-    return SearchSource;
+        state.body[key] = val;
+      }
+    }
   };
-});
+
+  return SearchSource;
+};

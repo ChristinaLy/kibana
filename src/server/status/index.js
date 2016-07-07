@@ -1,55 +1,49 @@
-module.exports = function (kbnServer) {
-  var _ = require('lodash');
-  var Samples = require('./Samples');
-  var ServerStatus = require('./ServerStatus');
-  var { join } = require('path');
+import _ from 'lodash';
+import ServerStatus from './server_status';
+import wrapAuthConfig from './wrap_auth_config';
+import { join } from 'path';
 
-  var server = kbnServer.server;
-  var config = server.config();
-
+export default function (kbnServer, server, config) {
   kbnServer.status = new ServerStatus(kbnServer.server);
-  kbnServer.metrics = new Samples(60);
 
-  if (server.plugins.good) {
-    server.plugins.good.monitor.on('ops', function (event) {
-      var port = config.get('server.port');
-      kbnServer.metrics.add({
-        rss: event.psmem.rss,
-        heapTotal: event.psmem.heapTotal,
-        heapUsed: event.psmem.heapUsed,
-        load: event.osload,
-        delay: event.psdelay,
-        concurrency: _.get(event, ['concurrents', port]),
-        responseTimeAvg: _.get(event, ['responseTimes', port, 'avg']),
-        responseTimeMax: _.get(event, ['responseTimes', port, 'max']),
-        requests: _.get(event, ['requests', port, 'total'], 0)
-      });
-    });
+  if (server.plugins['even-better']) {
+    kbnServer.mixin(require('./metrics'));
   }
 
-  server.route({
+  const wrapAuth = wrapAuthConfig(config.get('status.allowAnonymous'));
+
+  server.route(wrapAuth({
     method: 'GET',
     path: '/api/status',
     handler: function (request, reply) {
       return reply({
+        name: config.get('server.name'),
+        uuid: config.get('uuid'),
         status: kbnServer.status.toJSON(),
         metrics: kbnServer.metrics
       });
     }
+  }));
+
+  server.decorate('reply', 'renderStatusPage', async function () {
+    const app = kbnServer.uiExports.getHiddenApp('status_page');
+    const response = await getResponse(this);
+    response.code(kbnServer.status.isGreen() ? 200 : 503);
+    return response;
+
+    function getResponse(ctx) {
+      if (app) {
+        return ctx.renderApp(app);
+      }
+      return ctx(kbnServer.status.toString());
+    }
   });
 
-  server.decorate('reply', 'renderStatusPage', function () {
-    var app = _.get(kbnServer, 'uiExports.apps.hidden.byId.statusPage');
-    var resp = app ? this.renderApp(app) : this(kbnServer.status.toString());
-    resp.code(kbnServer.status.isGreen() ? 200 : 503);
-    return resp;
-  });
-
-  server.route({
+  server.route(wrapAuth({
     method: 'GET',
     path: '/status',
     handler: function (request, reply) {
       return reply.renderStatusPage();
     }
-  });
+  }));
 };

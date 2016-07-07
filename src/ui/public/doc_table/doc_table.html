@@ -1,4 +1,3 @@
-<div class="spinner large" ng-show="searchSource.activeFetchCount > 0"></div>
 <div
   ng-if="hits.length"
   ng-class="{ loading: searchSource.activeFetchCount > 0 }">
@@ -11,7 +10,7 @@
         sorting="sorting">
       </thead>
       <tbody>
-        <tr ng-repeat="row in page|limitTo:limit track by row._index+row._type+row._id"
+        <tr ng-repeat="row in page|limitTo:limit track by row._index+row._type+row._id+row._score"
           kbn-table-row="row"
           columns="columns"
           sorting="sorting"
@@ -30,7 +29,7 @@
       sorting="sorting">
     </thead>
     <tbody>
-      <tr ng-repeat="row in hits|limitTo:limit track by row._index+row._type+row._id"
+      <tr ng-repeat="row in hits|limitTo:limit track by row._index+row._type+row._id+row._score"
         kbn-table-row="row"
         columns="columns"
         sorting="sorting"

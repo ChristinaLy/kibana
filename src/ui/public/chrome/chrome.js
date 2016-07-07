@@ -1,27 +1,29 @@
-var _ = require('lodash');
-var $ = require('jquery');
-var angular = require('angular');
 
-require('ui/timefilter');
-require('ui/private');
-require('ui/promises');
+import _ from 'lodash';
+import angular from 'angular';
 
-var TabCollection = require('ui/chrome/TabCollection');
 
-var chrome = {
-  navBackground: '#222222',
-  logo: null,
-  smallLogo: null
-};
+import metadata from 'ui/metadata';
+import 'babel/polyfill';
+import $ from 'jquery';
+import 'ui/timefilter';
+import 'ui/private';
+import 'ui/promises';
+import 'ui/directives/kbn_src';
+import 'ui/watch_multi';
 
-var internals = _.assign(
-  _.cloneDeep(window.__KBN__ || {}),
+let chrome = {};
+let internals = _.defaults(
+  _.cloneDeep(metadata),
   {
-    tabs: new TabCollection(),
+    basePath: '',
     rootController: null,
     rootTemplate: null,
     showAppsLink: null,
-    brand: null
+    xsrfToken: null,
+    brand: null,
+    nav: [],
+    applicationClasses: []
   }
 );
 
@@ -31,7 +33,10 @@ $('<link>').attr({
 }).appendTo('head');
 
 require('./api/apps')(chrome, internals);
+require('./api/xsrf')(chrome, internals);
+require('./api/nav')(chrome, internals);
 require('./api/angular')(chrome, internals);
+require('./api/controls')(chrome, internals);
 require('./api/tabs')(chrome, internals);
 require('./api/template')(chrome, internals);
 require('./api/theme')(chrome, internals);
@@ -39,7 +44,6 @@ require('./api/theme')(chrome, internals);
 chrome.bootstrap = function () {
   chrome.setupAngular();
   angular.bootstrap(document, ['kibana']);
-  $(document.body).children(':not(style-compile)').show();
 };
 
 module.exports = chrome;

@@ -1,44 +1,56 @@
-module.exports = function (kbnServer, server, config) {
-  let _ = require('lodash');
-  let Boom = require('boom');
-  let formatUrl = require('url').format;
-  let { join, resolve } = require('path');
-  let UiExports = require('./UiExports');
+import { format as formatUrl } from 'url';
+import { readFileSync as readFile } from 'fs';
+import { defaults } from 'lodash';
+import Boom from 'boom';
+import { resolve } from 'path';
+import fromRoot from '../utils/from_root';
+import UiExports from './ui_exports';
+import UiBundle from './ui_bundle';
+import UiBundleCollection from './ui_bundle_collection';
+import UiBundlerEnv from './ui_bundler_env';
 
-  let uiExports = kbnServer.uiExports = new UiExports(kbnServer);
-  let apps = uiExports.apps;
-  let hiddenApps = uiExports.apps.hidden;
+export default async (kbnServer, server, config) => {
+
+  const loadingGif = readFile(fromRoot('src/ui/public/loading.gif'), { encoding: 'base64'});
+
+  const uiExports = kbnServer.uiExports = new UiExports({
+    urlBasePath: config.get('server.basePath')
+  });
+
+  const bundlerEnv = new UiBundlerEnv(config.get('optimize.bundleDir'));
+  bundlerEnv.addContext('env', config.get('env.name'));
+  bundlerEnv.addContext('urlBasePath', config.get('server.basePath'));
+  bundlerEnv.addContext('sourceMaps', config.get('optimize.sourceMaps'));
+  bundlerEnv.addContext('kbnVersion', config.get('pkg.version'));
+  bundlerEnv.addContext('buildNum', config.get('pkg.buildNum'));
+  uiExports.addConsumer(bundlerEnv);
+
+  for (let plugin of kbnServer.plugins) {
+    uiExports.consumePlugin(plugin);
+  }
+
+  const bundles = kbnServer.bundles = new UiBundleCollection(bundlerEnv, config.get('optimize.bundleFilter'));
+
+  for (let app of uiExports.getAllApps()) {
+    bundles.addApp(app);
+  }
+
+  for (let gen of uiExports.getBundleProviders()) {
+    const bundle = await gen(UiBundle, bundlerEnv, uiExports.getAllApps(), kbnServer.plugins);
+    if (bundle) bundles.add(bundle);
+  }
 
   // render all views from the ui/views directory
   server.setupViews(resolve(__dirname, 'views'));
-
-  // serve the app switcher
-  server.route({
-    path: '/apps',
-    method: 'GET',
-    handler: function (req, reply) {
-      let switcher = hiddenApps.byId.switcher;
-      if (!switcher) return reply(Boom.notFound('app switcher not installed'));
-      return reply.renderApp(switcher);
-    }
-  });
-
-  // serve the app switcher
-  server.route({
-    path: '/api/apps',
-    method: 'GET',
-    handler: function (req, reply) {
-      return reply(apps);
-    }
-  });
+  server.exposeStaticFile('/loading.gif', resolve(__dirname, 'public/loading.gif'));
 
   server.route({
     path: '/app/{id}',
     method: 'GET',
     handler: function (req, reply) {
-      let id = req.params.id;
-      let app = apps.byId[id];
-      if (!app) return reply(Boom.notFound('Unkown app ' + id));
+      const id = req.params.id;
+      const app = uiExports.apps.byId[id];
+      if (!app) return reply(Boom.notFound('Unknown app ' + id));
 
       if (kbnServer.status.isGreen()) {
         return reply.renderApp(app);
@@ -48,40 +60,29 @@ module.exports = function (kbnServer, server, config) {
     }
   });
 
-  server.decorate('reply', 'renderApp', function (app) {
-    if (app.requireOptimizeGreen) {
-      let optimizeStatus = kbnServer.status.get('optimize');
-      switch (optimizeStatus && optimizeStatus.state) {
-      case 'yellow':
-        return this(`
-          <html>
-            <head><meta http-equiv="refresh" content="1"></head>
-            <body>${optimizeStatus.message}</body>
-          </html>
-        `).code(503);
-
-      case 'red':
-        return this(`
-          <html><body>${optimizeStatus.message}</body></html>
-        `).code(500);
-      }
-    }
-
-    let payload = {
+  server.decorate('reply', 'renderApp', async function (app) {
+    const isElasticsearchPluginRed = server.plugins.elasticsearch.status.state === 'red';
+    const uiSettings = server.uiSettings();
+    const payload = {
       app: app,
-      appCount: apps.length,
+      nav: uiExports.navLinks.inOrder,
       version: kbnServer.version,
-      buildSha: _.get(kbnServer, 'build.sha', '@@buildSha'),
-      buildNumber: _.get(kbnServer, 'build.number', '@@buildNum'),
-      cacheBust: _.get(kbnServer, 'build.number', ''),
-      kbnIndex: config.get('kibana.index'),
-      esShardTimeout: config.get('elasticsearch.shardTimeout')
+      buildNum: config.get('pkg.buildNum'),
+      buildSha: config.get('pkg.buildSha'),
+      basePath: config.get('server.basePath'),
+      serverName: config.get('server.name'),
+      uiSettings: {
+        defaults: await uiSettings.getDefaults(),
+        user: isElasticsearchPluginRed ? {} : await uiSettings.getUserProvided()
+      },
+      vars: defaults(app.getInjectedVars() || {}, uiExports.defaultInjectedVars),
     };
 
     return this.view(app.templateName, {
       app: app,
-      cacheBust: payload.cacheBust,
-      kibanaPayload: payload
+      loadingGif: loadingGif,
+      kibanaPayload: payload,
+      bundlePath: `${config.get('server.basePath')}/bundles`,
     });
   });
 };

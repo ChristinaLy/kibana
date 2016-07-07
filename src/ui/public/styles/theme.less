@@ -8,19 +8,65 @@
 @import "~ui/styles/variables";
 @import "~ui/styles/theme/bootstrap";
 @import "~ui/styles/theme/font-awesome";
+@import "~ui/styles/fonts";
 
 
 // Navbar =====================================================================
 
 .navbar {
   border-width: 0;
+}
 
-  box-shadow: inset 0 -10px 10px -12px #333;
-  -moz-box-shadow: inset 0 -10px 10px -12px #333;
-  -webkit-box-shadow: inset 0 -10px 10px -12px #333;
+  .navbar-static-top {
+    background-color: @kibanaGray5;
+    color: @kibanaGray2;
+    .navbar-brand:hover,
+    .navbar-brand {
+      float: none;
+      color: @kibanaGray2;
+      font-size: 1em;
+      background-color: transparent;
+      padding-top: 8px;
+      height: 35px;
+    }
+    .navbar-nav {
 
-  &-btn-link {
-    height: @navbar-height;
+      > li > a,
+      > span {
+        color: @kibanaGray2;
+        font-size: 1.5em;
+        padding: 5px 0 6px 0;
+        margin: 0 10px;
+        border-bottom: 2px solid transparent;
+      }
+      // singular tabs are treated as titles
+      > li:only-child > a {
+        color: @kibanaGray1;
+      }
+      // Active, hover state for the getTabs
+      > .active > a,
+      > .active > a:hover,
+      > .active > a:active,
+      > li > a:active,
+      > li > a:hover {
+        color: @kibanaGray1;
+        background-color: transparent;
+        border-bottom: 2px solid @kibanaGray1;
+      }
+
+      .is-navbar-nav-link-disabled {
+        opacity: 0.5;
+        cursor: default;
+
+        &:hover {
+          border-bottom-color: transparent;
+          color: @kibanaGray2;
+        }
+      }
+    }
+  }
+
+  .navbar-btn-link {
     margin: 0;
     border-radius: 0;
 
@@ -30,14 +76,14 @@
     }
   }
 
-  &-default {
+  .navbar-default {
     .badge {
-      background-color: #fff;
-      color: @navbar-default-bg;
+      background-color: @navbar-default-badge-bg;
+      color: @navbar-default-badge-color;
     }
   }
 
-  &-inverse {
+  .navbar-inverse {
     .logo {
       height: @navbar-height;
       width: 252px;
@@ -51,51 +97,29 @@
     }
 
     .badge {
-      background-color: #fff;
-      color: lighten(@navbar-inverse-bg, 10%);
+      background-color: @navbar-inverse-badge-bg;
+      color: @navbar-inverse-badge-color;
     }
   }
 
-  .navbar-nav > .active > a {
-    border-bottom-color: @body-bg; // active-arrow-color
-
-    // navbar active arrow base styles
-    &:before {
-      content: "";
-      display: inline-block;
-      position: absolute;
-      border: @navbar-arrow-size solid transparent;
-      border-bottom-color: inherit;
-      top: (@navbar-height - @navbar-arrow-size*2);
-      left: 0;
-      right: 0;
-      margin: 0 auto;
-      width: 0;
-      height: 0;
-    }
-
-    @media (max-width: @screen-sm-min) {
-      &:before {
-        display: none !important;
-      }
-    }
-  }
-
-  &-brand {
+  .navbar-brand {
     cursor: default;
     font-size: 1.8em;
-    background-color: @navbar-inverse-brand-bg;
     user-select: none;
   }
 
-  &-nav {
+  .navbar-nav {
     font-size: @font-size-small;
+
+    & > .active > a {
+      border-bottom-color: @kibanaGray2;
+      background-color: transparent;
+    }
   }
 
-  &-toggle {
+  .navbar-toggle {
     margin-top: 4px;
   }
-}
 
 // Buttons ====================================================================
 
@@ -155,36 +179,27 @@ table,
   .warning,
   .danger,
   .info {
-    color: #fff;
+    color: @table-special-color;
 
     a {
-      color: #fff;
+      color: @table-special-color;
     }
   }
+}
 
-  // > thead > tr > th,
-  // > tbody > tr > th,
-  // > tfoot > tr > th,
-  // > thead > tr > td,
-  // > tbody > tr > td,
-  // > tfoot > tr > td {
-  //   border: none;
-  // }
-
-  &-bordered > thead > tr > th,
-  &-bordered > tbody > tr > th,
-  &-bordered > tfoot > tr > th,
-  &-bordered > thead > tr > td,
-  &-bordered > tbody > tr > td,
-  &-bordered > tfoot > tr > td {
+  .table-bordered > thead > tr > th,
+  .table-bordered > tbody > tr > th,
+  .table-bordered > tfoot > tr > th,
+  .table-bordered > thead > tr > td,
+  .table-bordered > tbody > tr > td,
+  .table-bordered > tfoot > tr > td {
     border: 1px solid @table-border-color;
   }
-}
 
 // Forms ======================================================================
 
 .form-control,
-input, {
+input {
   border-width: @input-border-width;
   .box-shadow(none);
 
@@ -206,7 +221,8 @@ input, {
 
   .form-control,
   .form-control:focus {
-    border: @input-border-width solid @brand-warning;
+    border: @input-border-width solid;
+    border-color: @brand-warning;
   }
 
   .input-group-addon {
@@ -227,7 +243,8 @@ input, {
 
   .form-control,
   .form-control:focus {
-    border: @input-border-width solid @brand-danger;
+    border: @input-border-width solid;
+    border-color: @brand-danger;
   }
 
   .input-group-addon {
@@ -269,7 +286,7 @@ input, {
 .pager {
   a,
   a:hover {
-    color: #fff;
+    color: @pager-link-color;
   }
 
   .disabled {
@@ -296,18 +313,18 @@ input, {
 
   a,
   .alert-link {
-    color: #fff;
+    color: @alert-color;
     text-decoration: underline;
   }
 
   .close {
-    color: #fff;
+    color: @alert-color;
     text-decoration: none;
     opacity: 0.4;
 
     &:hover,
     &:focus {
-      color: #fff;
+      color: @alert-color;
       opacity: 1;
     }
   }

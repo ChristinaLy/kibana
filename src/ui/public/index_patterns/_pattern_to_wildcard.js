@@ -1,13 +1,12 @@
-define(function (require) {
-  return function PatternToWildcardFn() {
-    return function (format) {
-      var wildcard = '';
-      var inEscape = false;
-      var inPattern = false;
+export default function PatternToWildcardFn() {
+  return function (format) {
+    let wildcard = '';
+    let inEscape = false;
+    let inPattern = false;
 
-      for (var i = 0; i < format.length; i++) {
-        var ch = format.charAt(i);
-        switch (ch) {
+    for (let i = 0; i < format.length; i++) {
+      let ch = format.charAt(i);
+      switch (ch) {
         case '[':
           inPattern = false;
           if (!inEscape) {
@@ -30,10 +29,9 @@ define(function (require) {
             wildcard += '*';
             inPattern = true;
           }
-        }
       }
+    }
 
-      return wildcard;
-    };
+    return wildcard;
   };
-});
+};
